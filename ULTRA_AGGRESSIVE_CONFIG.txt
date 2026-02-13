@@ -1,0 +1,37 @@
+"""
+ULTRA-AGGRESSIVE Configuration Override
+Use this for absolute minimum latency (may sacrifice some naturalness)
+"""
+
+# Copy this to .env or modify config.py directly
+
+# ULTRA-AGGRESSIVE TTS CHUNKING
+TTS_CHUNK_MIN_CHARS=15  # Fire at just 15 characters
+TTS_CHUNK_MAX_CHARS=60  # Force fire at 60 characters
+
+# ULTRA-SHORT RESPONSES
+LLM_MAX_TOKENS=40  # Maximum 40 tokens (~30 words)
+LLM_TEMPERATURE=0.1  # Very deterministic
+
+# FASTER TTS PLAYBACK
+TTS_SPEED=1.2  # 20% faster (still understandable)
+
+# AGGRESSIVE VAD
+SILENCE_DURATION=0.5  # Very quick cutoff
+MIN_SPEECH_DURATION=0.2  # Allow shorter utterances
+
+# System Prompt (copy to config.py)
+"""Sen Freya. 1 cümle, 10 kelime maksimum. Çok kısa cevap."""
+
+# Expected Results:
+# - TTFA: ~2000ms (much lower)
+# - TTS Calls: 3-5 (more chunks)
+# - Response: 20-30 words (very short)
+# - May sound choppy but much faster
+
+# Trade-offs:
+# + Much lower latency
+# + Faster perceived response
+# - Less natural pauses
+# - May cut sentences awkwardly
+# - Very brief responses (may lack detail)

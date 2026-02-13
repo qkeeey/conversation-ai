@@ -1,0 +1,17 @@
+# Core dependencies (required)
+requests>=2.31.0
+python-dotenv>=1.0.0
+aiohttp>=3.9.0
+
+# Audio processing (required)
+numpy>=1.24.0
+sounddevice>=0.4.6
+soundfile>=0.12.1
+
+# UI (required)
+rich>=13.7.0
+
+# Optional: Voice Activity Detection (requires C++ build tools on Windows)
+# webrtcvad>=2.0.10
+# If webrtcvad installation fails, the system will work in manual mode
+# Use: python main.py --manual
