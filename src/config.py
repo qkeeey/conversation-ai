@@ -110,6 +110,17 @@ Kullanıcının sorusunu tam olarak yanıtla."""
     OUTPUT_DIR = Path(__file__).parent / "outputs"
     OUTPUT_DIR.mkdir(exist_ok=True)
     
+    # Recall.ai Integration Settings (for meeting bots)
+    RECALL_API_KEY = os.getenv('RECALL_API_KEY')
+    RECALL_BASE_URL = os.getenv('RECALL_BASE_URL', 'https://us-east-1.recall.ai')
+    
+    # Redis Configuration (for meeting bot queue)
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379')
+    
+    # Bot Configuration
+    BOT_NAME = os.getenv('BOT_NAME', 'Freya')
+    PUBLIC_BASE_URL = os.getenv('PUBLIC_BASE_URL')  # For webhook URLs (e.g., ngrok URL)
+    
     @classmethod
     def validate(cls):
         """Validate configuration"""

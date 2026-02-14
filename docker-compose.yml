@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: conversation-ai-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    container_name: conversation-ai-orchestrator
+    ports:
+      - "8000:8000"
+    environment:
+      - RECALL_API_KEY=${RECALL_API_KEY}
+      - RECALL_BASE_URL=${RECALL_BASE_URL:-https://us-east-1.recall.ai}
+      - REDIS_URL=redis://redis:6379
+      - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
+
+  agent-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    container_name: conversation-ai-agent-worker
+    environment:
+      - RECALL_API_KEY=${RECALL_API_KEY}
+      - RECALL_BASE_URL=${RECALL_BASE_URL:-https://us-east-1.recall.ai}
+      - REDIS_URL=redis://redis:6379
+      - BOT_NAME=${BOT_NAME:-Freya}
+      - FAL_KEY=${FAL_KEY}
+      - OPENROUTER_KEY=${OPENROUTER_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-fal}
+      - LLM_MODEL=${LLM_MODEL:-google/gemini-2.5-flash-lite}
+      - LLM_TEMPERATURE=${LLM_TEMPERATURE:-0.7}
+      - TTS_ENDPOINT=${TTS_ENDPOINT}
+      - STT_ENDPOINT=${STT_ENDPOINT}
+      - TTS_CHUNK_MIN_CHARS=${TTS_CHUNK_MIN_CHARS:-20}
+      - TTS_CHUNK_MAX_CHARS=${TTS_CHUNK_MAX_CHARS:-100}
+      - TTS_SPEED=${TTS_SPEED:-1.1}
+      - TTS_SPEED_INITIAL=${TTS_SPEED_INITIAL:-0.9}
+      - TTS_SPEED_RAMP_CHUNKS=${TTS_SPEED_RAMP_CHUNKS:-3}
+      - ENABLE_SPEED_RAMPING=${ENABLE_SPEED_RAMPING:-true}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  redis-data:

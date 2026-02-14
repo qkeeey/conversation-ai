@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements (meeting-optimized, no local audio libs)
+COPY requirements-meeting.txt .
+RUN pip install --no-cache-dir -r requirements-meeting.txt
+
+# Copy source code
+COPY src/ /app/src/
+COPY agent-worker/ /app/
+
+# Set Python path
+ENV PYTHONPATH=/app:/app/src
+
+CMD ["python", "main.py"]

@@ -1,0 +1,38 @@
+# Docker
+.dockerignore
+Dockerfile*
+docker-compose*.yml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Data
+data/
+outputs/
+*.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test files
+test_*.py
+*_test.py
+
+# Documentation
+docs/
+context/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
