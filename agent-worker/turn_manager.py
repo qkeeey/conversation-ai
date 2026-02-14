@@ -40,15 +40,48 @@ class TurnManager:
         Returns:
             True if bot should respond
         """
+        should_respond, _ = self.should_respond_with_reason(text, participant_name)
+        return should_respond
+    
+    def should_respond_with_reason(self, text: str, participant_name: str) -> tuple[bool, str]:
+        """
+        Decide if bot should respond with detailed reasoning
+        
+        Returns:
+            (should_respond: bool, reason: str)
+        """
+        text_lower = text.lower()
+        participant_lower = participant_name.lower() if participant_name else ""
+        
+        print(f"🔍 [WAKE-WORD] Checking: '{text}'")
+        print(f"🔍 [WAKE-WORD] Looking for: '{self.bot_name}'")
+        print(f"🔍 [WAKE-WORD] Speaker: '{participant_name}'")
+        
         # Rule 1: Don't respond to self
-        if participant_name and self.bot_name in participant_name.lower():
-            return False
+        if participant_name and self.bot_name in participant_lower:
+            print(f"❌ [WAKE-WORD] Rejected: Self-speech")
+            return False, f"Self-speech detected (speaker: {participant_name})"
         
-        # Rule 2: Wake word detection (bot name mention)
-        if self.bot_name in text.lower():
-            return True
+        # Rule 2: Wake word detection (bot name mention) - add fuzzy matching
+        # Check exact match first
+        if self.bot_name in text_lower:
+            print(f"✅ [WAKE-WORD] Accepted: Exact match found")
+            return True, f"Wake word '{self.bot_name}' detected"
         
-        return False
+        # Fuzzy matching for common misspellings ("afreyya" -> "freya")
+        import re
+        # Remove punctuation and extra spaces
+        cleaned = re.sub(r'[^a-z\s]', '', text_lower)
+        words = cleaned.split()
+        
+        for word in words:
+            # Check Levenshtein distance or simple pattern matching
+            if 'frey' in word or 'afrey' in word:
+                print(f"✅ [WAKE-WORD] Accepted: Fuzzy match '{word}' ~ '{self.bot_name}'")
+                return True, f"Wake word fuzzy match: '{word}' ~ '{self.bot_name}'"
+        
+        print(f"❌ [WAKE-WORD] Rejected: No wake word found")
+        return False, f"No wake word '{self.bot_name}' found (checked: {words[:5]})"
     
     def should_interrupt(self, text: str) -> bool:
         """

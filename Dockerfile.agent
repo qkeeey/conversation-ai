@@ -2,9 +2,10 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (including ffmpeg for audio conversion)
 RUN apt-get update && apt-get install -y \
     gcc \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements (meeting-optimized, no local audio libs)
@@ -14,8 +15,9 @@ RUN pip install --no-cache-dir -r requirements-meeting.txt
 # Copy source code
 COPY src/ /app/src/
 COPY agent-worker/ /app/
+COPY bot-orchestrator/ /app/bot-orchestrator/
 
 # Set Python path
-ENV PYTHONPATH=/app:/app/src
+ENV PYTHONPATH=/app:/app/src:/app/bot-orchestrator
 
 CMD ["python", "main.py"]

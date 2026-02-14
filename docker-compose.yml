@@ -24,14 +24,19 @@ services:
     environment:
       - RECALL_API_KEY=${RECALL_API_KEY}
       - RECALL_BASE_URL=${RECALL_BASE_URL:-https://us-east-1.recall.ai}
+      - RECALL_WEBHOOK_SECRET=${RECALL_WEBHOOK_SECRET}
       - REDIS_URL=redis://redis:6379
       - PUBLIC_BASE_URL=${PUBLIC_BASE_URL}
+      - FAL_KEY=${FAL_KEY}
+      - STT_ENDPOINT=${STT_ENDPOINT}
+      - TTS_ENDPOINT=${TTS_ENDPOINT}
     depends_on:
       redis:
         condition: service_healthy
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+      - ./bot-orchestrator:/app
 
   agent-worker:
     build:
@@ -60,6 +65,10 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
+    volumes:
+      - ./agent-worker:/app
+      - ./bot-orchestrator:/bot-orchestrator
+      - ./src:/src
 
 volumes:
   redis-data:

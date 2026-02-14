@@ -4,8 +4,8 @@ import os
 from typing import Dict, Any
 from datetime import datetime
 
-# Add src to path to import conversation engine
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+# Add src to path for conversation engine (Docker volume mounts)
+sys.path.append('/src')
 
 from session_manager import SessionManager
 from turn_manager import TurnManager
@@ -44,14 +44,22 @@ class EventProcessor:
             participant = event["participant"]
             participant_name = participant.get("name", "Unknown")
             
-            print(f"\n📝 Transcript received: {participant_name}: {text}")
+            print(f"\n{'='*70}")
+            print(f"🎯 [WORKER] Processing transcript event")
+            print(f"   Bot ID: {bot_id[:8]}...")
+            print(f"   Speaker: {participant_name}")
+            print(f"   Text: {text}")
             
             # Decision: Should we respond?
-            if not self.turn_manager.should_respond(text, participant_name):
-                print(f"⏭️  Skipping (no wake word or self-message)")
+            should_respond, reason = self.turn_manager.should_respond_with_reason(text, participant_name)
+            print(f"   🤔 Turn decision: {reason}")
+            
+            if not should_respond:
+                print(f"   ⏭️  Skipping response")
+                print(f"{'='*70}\n")
                 return
             
-            print(f"✅ Wake word detected! Processing...")
+            print(f"   ✅ Wake word detected! Will respond...")
             
             # Check if bot is currently speaking
             is_speaking = await self.turn_manager.is_speaking(bot_id)
@@ -76,6 +84,9 @@ class EventProcessor:
             start_time = datetime.utcnow()
             
             try:
+                print(f"   📊 Session: {len(history)} messages in history")
+                print(f"{'='*70}\n")
+                
                 # Process with conversation engine
                 # This calls: LLM streaming -> sentence chunking -> parallel TTS -> audio upload
                 metrics = await self.meeting_engine.process_text_to_audio(

@@ -2,20 +2,50 @@
 import requests
 import json
 import time
+import os
+import hmac
+import hashlib
 from datetime import datetime, timezone
 import sys
 
+# Load environment variables
+def load_env():
+    env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
+    if os.path.exists(env_path):
+        with open(env_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    value = value.split('#')[0].strip()
+                    os.environ[key.strip()] = value
+
+load_env()
 
 BASE_URL = "http://localhost:8000"
+TEST_MEETING_URL = os.getenv('TEST_MEETING_URL', 'https://meet.google.com/simulated-meeting')
+WEBHOOK_SECRET = os.getenv('RECALL_WEBHOOK_SECRET')
+
+def compute_webhook_signature(body: bytes) -> str:
+    """Compute HMAC-SHA256 signature for webhook request"""
+    if not WEBHOOK_SECRET:
+        return None
+    return hmac.new(
+        WEBHOOK_SECRET.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
 
 
 def create_test_bot():
     """Create a test bot"""
     payload = {
-        "meeting_url": "https://meet.google.com/simulated-meeting",
+        "meeting_url": TEST_MEETING_URL,
         "bot_name": "Freya",
         "metadata": {"simulation": True}
     }
+    
+    print(f"Using meeting URL: {TEST_MEETING_URL}")
     
     response = requests.post(f"{BASE_URL}/v1/bots", json=payload)
     if response.status_code == 201:
@@ -40,7 +70,18 @@ def send_transcript(bot_id, participant_name, text):
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
     
-    response = requests.post(f"{BASE_URL}/webhooks/recall/realtime", json=payload)
+    # Compute webhook signature
+    body = json.dumps(payload).encode()
+    signature = compute_webhook_signature(body)
+    headers = {"Content-Type": "application/json"}
+    if signature:
+        headers["X-Recall-Signature"] = signature
+    
+    response = requests.post(
+        f"{BASE_URL}/webhooks/recall/realtime",
+        data=body,
+        headers=headers
+    )
     print(f"📝 {participant_name}: {text}")
     print(f"   → Status: {response.status_code}")
 

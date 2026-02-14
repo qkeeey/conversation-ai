@@ -4,12 +4,12 @@ import os
 import asyncio
 from datetime import datetime
 
-# Add paths
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'bot-orchestrator'))
+# Add paths for Docker volume mounts
+sys.path.append('/src')
+sys.path.append('/bot-orchestrator')
 
 from dotenv import load_dotenv
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'src', '.env'))
+load_dotenv('/src/.env')
 
 from redis_queue import RedisQueue
 from session_manager import SessionManager
@@ -39,7 +39,7 @@ async def main():
     # Import meeting conversation engine (will be created in next task)
     try:
         from conversation_engine_meeting import MeetingConversationEngine
-        meeting_engine = MeetingConversationEngine()
+        meeting_engine = MeetingConversationEngine(redis_queue=redis_queue)
         print("✅ Meeting conversation engine initialized")
     except ImportError:
         print("⚠️  Meeting conversation engine not found, using placeholder")
@@ -62,6 +62,13 @@ async def main():
             event = await redis_queue.dequeue_transcript(timeout=1)
             
             if event:
+                message_id = event.get("message_id", "unknown")
+                bot_id = event.get("bot_id", "unknown")
+                text = event.get("text", "")
+                print(f"\n📬 [DEQUEUE] msg_id={message_id}, bot={bot_id[:8] if len(bot_id) > 8 else bot_id}")
+                print(f"📬 [DEQUEUE] Raw event (first 300 chars): {str(event)[:300]}")
+                print(f"📬 [DEQUEUE] Text: '{text}'\n")
+                
                 # Process event
                 await processor.process_event(event)
             else:

@@ -71,7 +71,7 @@ class SessionManager:
         # Add new message
         session["history"].append({
             "role": role,
-            "text": text
+            "content": text
         })
         
         # Keep only last N messages

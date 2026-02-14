@@ -122,7 +122,14 @@ class BotDatabase:
     ):
         """Log a bot event for debugging"""
         now = datetime.utcnow().isoformat()
-        payload_json = json.dumps(payload or {})
+        
+        # Custom JSON encoder to handle datetime objects
+        def json_serializer(obj):
+            if isinstance(obj, datetime):
+                return obj.isoformat()
+            raise TypeError(f"Type {type(obj)} not serializable")
+        
+        payload_json = json.dumps(payload or {}, default=json_serializer)
         
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""

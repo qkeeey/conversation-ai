@@ -23,9 +23,10 @@ from recall_api import RecallAPIClient
 class MeetingConversationEngine:
     """Conversation engine adapted for Recall.ai meeting bots"""
     
-    def __init__(self):
+    def __init__(self, redis_queue=None):
         self.services = VoiceServicesOptimized()
         self.recall_client = RecallAPIClient()
+        self.redis_queue = redis_queue  # Persistent Redis connection for audio publishing
         
         # Audio queue for sequential upload without blocking generation
         self.audio_queues = {}  # bot_id -> asyncio.Queue
@@ -103,13 +104,20 @@ class MeetingConversationEngine:
         # Clear any previous cancellation
         self._clear_cancellation(bot_id)
         
-        print("\n" + "="*60)
-        print(f"🤖 Processing for bot: {bot_id[:8]}...")
-        print(f"💬 User input: {text}")
-        print("="*60)
+        print(f"\n{'='*70}")
+        print(f"🧠 [CONVERSATION ENGINE] Starting pipeline")
+        print(f"   Bot ID: {bot_id[:8]}...")
+        print(f"   User input: {text}")
+        print(f"   History length: {len(history or [])} messages")
+        print(f"{'='*70}")
         
         # === LLM Streaming + Chunked TTS ===
         llm_start = time.time()
+        
+        print(f"\n🤖 [LLM] Requesting response...")
+        print(f"🤖 [LLM] System prompt length: {len(Config.SYSTEM_PROMPT)} chars")
+        print(f"🤖 [LLM] User utterance: '{text}'")
+        print(f"🤖 [LLM] History messages: {len(history or [])}")
         
         # Start LLM streaming
         llm_stream = self.services.generate_response_streaming_async(
@@ -141,6 +149,8 @@ class MeetingConversationEngine:
         WORD_DELIMITERS = [' ve ', ' ama ', ' çünkü ', ' ancak ']
         
         first_token_time = None
+        
+        print(f"   🔄 [LLM] Streaming response...")
         
         # Process LLM stream
         async for chunk_text, is_final, timing in llm_stream:
@@ -257,6 +267,7 @@ class MeetingConversationEngine:
         
         # Wait for all TTS generation tasks
         if tts_generation_tasks:
+            print(f"\n🎵 [TTS] Waiting for {len(tts_generation_tasks)} TTS tasks to complete...")
             tts_results = await asyncio.gather(*tts_generation_tasks, return_exceptions=True)
             for i, result in enumerate(tts_results):
                 if isinstance(result, Exception):
@@ -264,6 +275,8 @@ class MeetingConversationEngine:
                     tts_calls[i]['error'] = str(result)
                 elif isinstance(result, dict):
                     tts_calls[i].update(result)
+                    audio_bytes = result.get('total_bytes', 0)
+                    print(f"   ✅ TTS chunk {i+1}: {audio_bytes} bytes generated")
         
         # Signal end of audio queue
         await self.audio_queues[bot_id].put(None)
@@ -382,10 +395,14 @@ class MeetingConversationEngine:
             
             generation_time = time.time() - tts_start
             
+            # Log TTS validation
+            print(f"🎵 [TTS] Chunk #{chunk_num}: bytes={byte_count} sr=16000 ch=1", flush=True)
+            
             return {
                 'chunk_num': chunk_num,
                 'generation_time': generation_time,
                 'start_time': tts_start,
+                'total_bytes': byte_count,
                 'ttfb': first_byte_time,
                 'bytes': byte_count
             }
@@ -461,6 +478,15 @@ class MeetingConversationEngine:
                             if not audio_bytes:
                                 continue
                             
+                            # Validate TTS audio quality
+                            import struct
+                            if len(audio_bytes) >= 2:
+                                samples = struct.unpack("<" + "h" * (len(audio_bytes) // 2), audio_bytes)
+                                peak = max(abs(x) for x in samples) if samples else 0
+                                print(f"   🎵 [TTS-VALIDATE] bytes={len(audio_bytes)} peak={peak}", flush=True)
+                                if peak < 200:
+                                    print(f"   ⚠️  [TTS-VALIDATE] Very low audio peak - may be silence!", flush=True)
+                            
                             # Record TTFA
                             if ttfa is None:
                                 ttfa = time.time() - chunk_start
@@ -470,12 +496,24 @@ class MeetingConversationEngine:
                                     actual_ttfa = (self.first_audio_times[bot_id] - self.turn_start_times[bot_id]) * 1000
                                     print(f"   🔊 TTFA: {actual_ttfa:.0f}ms (Time To First Audio)")
                             
-                            # Upload to Recall bot
+                            # Publish audio to Redis for Output Media
                             try:
-                                await self.recall_client.send_audio(bot_id, audio_bytes)
-                                bytes_uploaded += len(audio_bytes)
+                                # Use persistent RedisQueue instance (passed in constructor)
+                                # This avoids creating new connections for every chunk (MUCH more efficient)
+                                if self.redis_queue:
+                                    await self.redis_queue.publish_audio_output(bot_id, audio_bytes)
+                                    bytes_uploaded += len(audio_bytes)
+                                else:
+                                    # Fallback: create temporary instance (slow path)
+                                    print(f"   ⚠️  No persistent RedisQueue, creating temporary instance (slower)", flush=True)
+                                    from redis_queue import RedisQueue
+                                    temp_queue = RedisQueue()
+                                    await temp_queue.connect()
+                                    await temp_queue.publish_audio_output(bot_id, audio_bytes)
+                                    await temp_queue.close()
+                                    bytes_uploaded += len(audio_bytes)
                             except Exception as e:
-                                print(f"   ⚠️  Failed to upload audio chunk: {e}")
+                                print(f"   ⚠️  Failed to publish audio chunk: {e}")
                                 # Continue with next chunk
                                 break
                         
